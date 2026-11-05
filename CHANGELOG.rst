@@ -1,6 +1,11 @@
 Release History
 ===============
 
+1.2.3+infal.2
+----------------
+
+* Synchronize migration state with model metadata without altering database tables.
+
 1.2.3+infal.1
 ----------------
 
