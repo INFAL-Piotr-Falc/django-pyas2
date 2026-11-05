@@ -1,9 +1,44 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+import shlex
+import subprocess
 from string import Template
 
+from pyas2 import settings
+
 logger = logging.getLogger("pyas2")
+
+
+def _run_command(command, variables):
+    """Run a configured command without invoking a shell."""
+    try:
+        arguments = [
+            Template(argument).safe_substitute(variables)
+            for argument in shlex.split(command)
+        ]
+    except ValueError:
+        logger.exception("Invalid AS2 post-processing command.")
+        return
+
+    if not arguments:
+        return
+
+    try:
+        result = subprocess.run(
+            arguments,
+            check=False,
+            timeout=settings.COMMAND_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        logger.exception("Failed to execute AS2 post-processing command.")
+        return
+
+    if result.returncode:
+        logger.error(
+            "AS2 post-processing command exited with status %s.",
+            result.returncode,
+        )
 
 
 def run_post_send(message):
@@ -13,8 +48,6 @@ def run_post_send(message):
     command = message.partner.cmd_send
     if command:
         logger.debug(f"Execute post successful send command {command}")
-        # Create command template and replace variables in the command
-        command = Template(command)
         variables = {
             "filename": os.path.basename(message.payload.name),
             "sender": message.organization.as2_name,
@@ -23,8 +56,7 @@ def run_post_send(message):
         }
         variables.update(message.as2message.headers)
 
-        # Execute the command
-        os.system(command.safe_substitute(variables))
+        _run_command(command, variables)
 
 
 def run_post_receive(message, full_filename):
@@ -35,8 +67,6 @@ def run_post_receive(message, full_filename):
     if command:
         logger.debug(f"Execute post successful receive command {command}")
 
-        # Create command template and replace variables in the command
-        command = Template(command)
         variables = {
             "filename": os.path.basename(full_filename),
             "fullfilename": full_filename,
@@ -46,5 +76,4 @@ def run_post_receive(message, full_filename):
         }
         variables.update(message.as2message.headers)
 
-        # Execute the command
-        os.system(command.safe_substitute(variables))
+        _run_command(command, variables)

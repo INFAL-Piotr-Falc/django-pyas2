@@ -11,7 +11,16 @@ from pyas2.tests import TEST_DIR
 
 class TestDownloadFileView(TestCase):
     def setUp(self):
-        self.user = User.objects.create(username="dummy")
+        self.user = User.objects.create(
+            username="dummy",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.regular_user = User.objects.create(username="regular")
+        self.staff_without_permissions = User.objects.create(
+            username="staff-without-permissions",
+            is_staff=True,
+        )
         with open(os.path.join(TEST_DIR, "client_public.pem"), "rb") as fp:
             self.cert = PublicCertificate.objects.create(
                 name="test-cert", certificate=fp.read()
@@ -40,7 +49,7 @@ class TestDownloadFileView(TestCase):
             reverse("download-file", kwargs={"obj_type": "public_cert", "obj_id": "1"})
         )
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(response.url.startswith("/accounts/login/"))
+        self.assertTrue(response.url.startswith("/admin/login/"))
 
     def test_unknown_object_type(self):
         """Test that we get 404 when an uknown object type is sent."""
@@ -51,6 +60,33 @@ class TestDownloadFileView(TestCase):
             reverse("download-file", kwargs={"obj_type": "some_type", "obj_id": "1"})
         )
         self.assertEqual(response.status_code, 404)
+
+    def test_non_staff_user_cannot_download_files(self):
+        client = Client()
+        client.force_login(self.regular_user)
+
+        response = client.get(
+            reverse(
+                "download-file",
+                kwargs={"obj_type": "public_cert", "obj_id": self.cert.id},
+            )
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith("/admin/login/"))
+
+    def test_staff_user_needs_object_permission(self):
+        client = Client()
+        client.force_login(self.staff_without_permissions)
+
+        response = client.get(
+            reverse(
+                "download-file",
+                kwargs={"obj_type": "public_cert", "obj_id": self.cert.id},
+            )
+        )
+
+        self.assertEqual(response.status_code, 403)
 
     def test_download_public_certificate(self):
         client = Client()
@@ -67,6 +103,7 @@ class TestDownloadFileView(TestCase):
         self.assertEqual(bytes(self.cert.certificate), response.content)
 
     def test_download_private_key(self):
+        """Private keys must never be downloadable."""
         client = Client()
         client.force_login(self.user)
 
@@ -76,9 +113,7 @@ class TestDownloadFileView(TestCase):
                 kwargs={"obj_type": "private_key", "obj_id": self.private_key.id},
             )
         )
-        self.assertEqual(str(self.private_key), "test-key")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(bytes(self.private_key.key), response.content)
+        self.assertEqual(response.status_code, 404)
 
     def test_download_message_payload(self):
         client = Client()

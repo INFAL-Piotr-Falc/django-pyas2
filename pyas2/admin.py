@@ -22,18 +22,7 @@ class PrivateKeyAdmin(admin.ModelAdmin):
     """Admin class for the PrivateKey model."""
 
     form = PrivateKeyForm
-    list_display = ("name", "valid_from", "valid_to", "serial_number", "download_key")
-
-    @staticmethod
-    def download_key(obj):
-        """Return the url to download the private key."""
-        download_url = reverse_lazy("download-file", args=["private_key", obj.id])
-        return format_html(
-            '<a href="{}" class="button">Click to Download</a>', download_url
-        )
-
-    download_key.allow_tags = True
-    download_key.short_description = "Key File"
+    list_display = ("name", "valid_from", "valid_to", "serial_number")
 
 
 @admin.register(PublicCertificate)

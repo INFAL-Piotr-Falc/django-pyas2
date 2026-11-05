@@ -1,31 +1,22 @@
 name: Run Tests
-on:
-  push:
-    branches:
-      - "master"
-  pull_request:
-    branches:
-      - "master"
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.7, 3.8, 3.9, "3.10"]
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
+          cache: pip
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[tests]"
+          pip install -r requirements/base.txt -r requirements/test.txt
       - name: Run Tests
-        run: |
-          pytest --cov-report term --cov-config .coveragerc --cov=pyas2 --black --pylama pyas2
-      - name: Generate CodeCov Report
-        run: |
-          pip install codecov
-          codecov
+        run: pytest -q pyas2/tests

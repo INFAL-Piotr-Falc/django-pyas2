@@ -20,3 +20,9 @@ ASYNC_MDN_WAIT = APP_SETTINGS.get("ASYNC_MDN_WAIT", 30)
 
 # Max number of days worth of messages to be saved in archive
 MAX_ARCH_DAYS = APP_SETTINGS.get("MAX_ARCH_DAYS", 30)
+
+# Timeout in seconds for post-processing commands.
+COMMAND_TIMEOUT = APP_SETTINGS.get("COMMAND_TIMEOUT", 30)
+
+# Requests accepts a (connect timeout, read timeout) pair.
+HTTP_TIMEOUT = APP_SETTINGS.get("HTTP_TIMEOUT", (10, 120))

@@ -1,6 +1,16 @@
 Release History
 ===============
 
+1.2.3+infal.1
+----------------
+
+* Support the AS2 application's Python 3.11 and Django 5.2 runtime.
+* Upgrade to pyas2lib 1.4.4 and a current pyOpenSSL/cryptography stack.
+* Pin the patched oscrypto revision by its full commit hash.
+* Restrict administrative send/download views and disable private-key export.
+* Execute post-processing hooks without a shell and with a timeout.
+* Add HTTP timeouts and disable redirects for asynchronous MDNs.
+
 1.2.3 - 2023-02-25
 ------------------
 

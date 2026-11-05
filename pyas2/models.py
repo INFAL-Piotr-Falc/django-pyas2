@@ -478,6 +478,7 @@ class Message(models.Model):
                 headers=header,
                 data=payload,
                 verify=self.partner.https_verify_ssl,
+                timeout=settings.HTTP_TIMEOUT,
             )
             response.raise_for_status()
         except requests.exceptions.RequestException:
@@ -511,10 +512,7 @@ class Message(models.Model):
                 mdn_content = mdn_content.encode("utf-8") + response.content
 
                 # Parse the as2 mdn received
-                logger.debug(
-                    f"Received MDN response for message {self.message_id} "
-                    f"with content: {mdn_content}"
-                )
+                logger.debug("Received MDN response for message %s.", self.message_id)
                 as2mdn = As2Mdn()
                 mdn_status, mdn_detailed_status = as2mdn.parse(
                     mdn_content, lambda x, y: self.as2message
@@ -627,7 +625,11 @@ class Mdn(models.Model):
         # Send the mdn to the partner
         try:
             response = requests.post(
-                self.return_url, headers=dict(headers.items()), data=self.payload.read()
+                self.return_url,
+                headers=dict(headers.items()),
+                data=self.payload.read(),
+                timeout=settings.HTTP_TIMEOUT,
+                allow_redirects=False,
             )
             response.raise_for_status()
         except requests.exceptions.RequestException:

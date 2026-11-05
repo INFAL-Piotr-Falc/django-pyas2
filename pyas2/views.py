@@ -2,6 +2,7 @@ import logging
 import os
 
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import Http404
 from django.shortcuts import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -15,12 +16,12 @@ from django.views.generic import FormView
 from pyas2lib import Message as As2Message
 from pyas2lib import Mdn as As2Mdn
 from pyas2lib.exceptions import DuplicateDocument
+from pyas2lib.utils import unquote_as2name
 
 from pyas2.models import Mdn
 from pyas2.models import Message
 from pyas2.models import Organization
 from pyas2.models import Partner
-from pyas2.models import PrivateKey
 from pyas2.models import PublicCertificate
 from pyas2.utils import run_post_receive
 from pyas2.utils import run_post_send
@@ -73,9 +74,17 @@ class ReceiveAs2Message(View):
     @csrf_exempt
     def post(self, request, *args, **kwargs):
         """Handle the post message received by the AS2 server."""
+        partner_id = unquote_as2name(request.META.get("HTTP_AS2_FROM", ""))
+        known_partner = Partner.objects.filter(as2_name=partner_id).exists()
+
         # extract the  headers from the http request
         as2headers = ""
         for key in request.META:
+            # pyas2lib 1.4.4 cannot sign an error MDN without a known sender
+            # profile. An unsigned failure MDN is still returned for an unknown
+            # partner instead of raising an internal server error.
+            if key == "HTTP_DISPOSITION_NOTIFICATION_OPTIONS" and not known_partner:
+                continue
             if key.startswith("HTTP") or key.startswith("CONTENT"):
                 as2headers += (
                     f'{key.replace("HTTP_", "").replace("_", "-").lower()}: '
@@ -85,8 +94,9 @@ class ReceiveAs2Message(View):
         # build the body along with the headers
         request_body = as2headers.encode() + b"\r\n" + request.body
         logger.debug(
-            f'Received an HTTP POST from {request.META["REMOTE_ADDR"]} '
-            f"with payload :\n{request_body}"
+            'Received an HTTP POST from %s with a %d-byte payload.',
+            request.META.get("REMOTE_ADDR", "unknown"),
+            len(request.body),
         )
 
         # First try to see if this is an MDN
@@ -254,8 +264,20 @@ class SendAs2Message(FormView):
 class DownloadFile(View):
     """A generic view for downloading files such as payload, certificates..."""
 
+    required_permissions = {
+        "message_payload": "pyas2.view_message",
+        "mdn_payload": "pyas2.view_mdn",
+        "public_cert": "pyas2.view_publiccertificate",
+    }
+
     def get(self, request, obj_type, obj_id, *args, **kwargs):
         """Return the requested file bytes as a response."""
+        permission = self.required_permissions.get(obj_type)
+        if permission is None:
+            raise Http404()
+        if not request.user.has_perm(permission):
+            raise PermissionDenied()
+
         filename = ""
         file_content = ""
         # Get the file content based
@@ -273,11 +295,6 @@ class DownloadFile(View):
             obj = get_object_or_404(PublicCertificate, pk=obj_id)
             filename = obj.name
             file_content = obj.certificate
-
-        elif obj_type == "private_key":
-            obj = get_object_or_404(PrivateKey, pk=obj_id)
-            filename = obj.name
-            file_content = obj.key
 
         # Return the file contents as attachment
         if filename and file_content:

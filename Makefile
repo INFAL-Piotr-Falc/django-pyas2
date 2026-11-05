@@ -1,5 +1,5 @@
 test:
-	@(py.test --cov-report term --cov-config .coveragerc --cov=pyas2 --color=yes pyas2/tests/ --black --pylama pyas2)
+	@(pytest -q pyas2/tests/)
 
 serve:
 	@(ENV=example python manage.py migrate && python manage.py runserver)
